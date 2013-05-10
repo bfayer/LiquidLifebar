@@ -1,4 +1,4 @@
-Lifebar
+Liquid Lifebar
 =======
 
 Liquid Lifebar, an Arduino project by bfayer
