@@ -32,7 +32,7 @@ int pumpPin = 3;
 
 //the health level at any point in time
 int hp; 
-int preHP; //was used when trying to figure out if there was a change in hp since last transmition 
+int preHP; 
 
 //stuff used for input from pc
 byte buffer[8] ;
@@ -43,7 +43,7 @@ byte inByte = 0;
 int redVal = 0;
 int grnVal = 255;
 int bluVal = 0;
-int uvVal = 255; //setting uv brightness 
+int uvVal = 255; 
 
 //Targets from PC
 int redTarget=0;
