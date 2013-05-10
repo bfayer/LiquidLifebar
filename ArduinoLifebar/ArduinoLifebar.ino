@@ -125,18 +125,7 @@ void setup()
   mySerial.begin(9600);
   Serial.begin(115200);
   Serial.println("#Health meter bar initialized");
-  hp = 100;
-  Move(hp);
-  preHP=hp; 
-  fullLife(); 
-  announceHP(int(hp));
 
-  Serial.flush();// Give reader a chance to see the output.
- 
-
-  //debug is 1 for on 0 for off
-  debug = 0;
-  
   //setup PWM output pins
   pinMode(redPin, OUTPUT);
   pinMode(grnPin, OUTPUT);
@@ -144,6 +133,19 @@ void setup()
   pinMode(uvPin, OUTPUT);
   pinMode(pumpPin, OUTPUT);
 
+
+  hp = 100;
+  Move(hp);
+  preHP=hp; 
+  fullLife(); 
+  announceHP(hp);
+
+  Serial.flush();// Give reader a chance to see the output.
+ 
+
+  //debug is 1 for on 0 for off
+  debug = 0;
+  
   analogWrite(pumpPin,90);
 }
 
@@ -195,7 +197,7 @@ void death() {
 }
 
 
-//special case that triggers on a full heal from another state
+//special case for hp set to 100 (full heal)
 void fullLife() {
   transitionToNew(255,255,255,0,1);//fades to white
   transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,1);//force fades back to target
@@ -207,7 +209,7 @@ void pumpLevel(int pumpIncoming) {
   analogWrite(pumpPin,pumpIncoming);
 }
 
-//Updates RGB LED and UV LED states
+//Updates RGB LED and UV LED states relative to motor position. 
 void updateState(){
   int feedback = jrkGetFeedback();
   
@@ -228,7 +230,7 @@ void updateState(){
 
 }
 
-//send this a pre and target int and it spits out an int based on the fractional feedback position of the motor controller
+//send this a pre and target int and it spits out an int based on the fractional feedback position of the motor controller relative its starting and target position mid-move
 int calculateVal2(int previousSetting, int targetSetting, int feedbackVal){
   delay(4); // for some reason the blu, and UV values get scrambled unless you have this delay, this is the lowest stable delay# and potentially isn't 100% stable
   int returnVal;
