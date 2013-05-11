@@ -19,7 +19,7 @@
 
 
 #include <SoftwareSerial.h>
-SoftwareSerial mySerial(7,8); // RX, TX, plug your control line into pin 8 and connect it to the RX pin on the JRK21v3
+SoftwareSerial mySerial(7,8); // 7= RX from ardiuino to TX on controller, 8=TX on arduino to RX on controller
 
 int debug;
 
