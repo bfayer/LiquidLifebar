@@ -283,16 +283,17 @@ void loop()
         pointer++;
       }
 
-      // update all of the state variables with the incoming values and logs the previous value for color fading reference
+      // update all of the state variables with the incoming values and takes a snapshot of the current color for fading reference
       preHP=hp;
-      hp=buffer[0];
       prevR=redVal;
-      redTarget=buffer[1];
       prevG=grnVal;
-      grnTarget=buffer[2];
       prevB=bluVal;
-      bluTarget=buffer[3];
       prevUV=uvVal;
+
+      hp=buffer[0];
+      redTarget=buffer[1];
+      grnTarget=buffer[2];
+      bluTarget=buffer[3];
       uvTarget=buffer[4];
       pumpSet=buffer[5];
       debug=buffer[6];
@@ -300,10 +301,7 @@ void loop()
       //updated the pump speed (response is so slow that there is no reason to fade it)
       pumpLevel(pumpSet);
 
-      //resetting state variable to setup transitions
-
-
-        //debug stuff
+      //debug stuff
       if (debug == 1){   // reports the serial port input values back to pc
         Serial.println("Debug mode on");
         Serial.print("HP:");
