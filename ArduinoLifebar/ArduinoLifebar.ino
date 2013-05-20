@@ -124,7 +124,7 @@ void Move(int x) {
 void setup()
 {
   mySerial.begin(9600);
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println("#Health meter bar initialized");
 
   //setup PWM output pins
