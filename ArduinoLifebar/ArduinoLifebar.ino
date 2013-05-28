@@ -15,12 +15,12 @@
  * pin 9 = blue LED (pwm)
  * pin 11 = Ultra Violet LED (pwm)
  * pin 3 = air pump  (pwm)
- *
  */
 
 
 #include <SoftwareSerial.h>
-SoftwareSerial mySerial(7,8); // 7= RX from ardiuino to TX on controller, 8=TX on arduino to RX on controller
+
+SoftwareSerial mySerial(7,8); // RX, TX, plug your control line into pin 8 and connect it to the RX pin on the JRK21v3
 
 int debug;
 
@@ -33,7 +33,7 @@ int pumpPin = 3;
 
 //the health level at any point in time
 int hp; 
-int preHP; 
+int preHP; //was used when trying to figure out if there was a change in hp since last transmition 
 
 //stuff used for input from pc
 byte buffer[8] ;
@@ -44,7 +44,7 @@ byte inByte = 0;
 int redVal = 0;
 int grnVal = 255;
 int bluVal = 0;
-int uvVal = 255; 
+int uvVal = 255; //setting uv brightness 
 
 //Targets from PC
 int redTarget=0;
@@ -58,7 +58,7 @@ int prevR = 0;
 int prevG = 0;
 int prevB = 0;
 int prevUV = 0;
-int dimDelay = 0;
+int dimDelay = 3;
 
 //Motor position variables for limiting range and position relative fading
 int minMotorPosition = 2500; //manually calibrated, plan on setting up low end calibration through pc app
@@ -75,11 +75,11 @@ void announceHP(int (health)) {
 } 
 
 
-//figures out a modulus factor to fade all colors in exactly 1020 steps
+//figures out a modulus factor to fade all colors in exactly 510 steps
 int calculateStep(int prevValue, int endValue) {
   int step = endValue - prevValue; // What's the overall gap?
   if (step) {                      // If its non-zero, 
-    step = 1020/step;    //   divide by 1020
+    step = 510/step;    //   divide by 510
   } 
   return step;
 }
@@ -95,7 +95,7 @@ int calculateVal(int step, int val, int i) {
       val -= 1;
     } 
   }
-  
+
   // keeps values within range
   if (val > 255) {
     val = 255;
@@ -109,7 +109,7 @@ int calculateVal(int step, int val, int i) {
 
 //sets the new target for the JRK21V3 controller, this uses pololu high resulution protocal
 void Move(int x) {
-  preMotorTarget = motorTarget;
+  preMotorTarget = jrkGetFeedback(); //motorTarget;
   float motorScale = (maxMotorPosition-minMotorPosition)/100;
   motorTarget=(x*motorScale)+minMotorPosition;
   word target = motorTarget;  //only pass this ints, i tried doing math in this and the remainder error screwed something up
@@ -124,8 +124,19 @@ void Move(int x) {
 void setup()
 {
   mySerial.begin(9600);
-  Serial.begin(9600);
+  Serial.begin(19200);
   Serial.println("#Health meter bar initialized");
+  hp = 100;
+  Move(hp);
+  preHP=hp; 
+  fullLife(); 
+  announceHP(int(hp));
+
+  Serial.flush();// Give reader a chance to see the output.
+
+
+  //debug is 1 for on 0 for off
+  debug = 0;
 
   //setup PWM output pins
   pinMode(redPin, OUTPUT);
@@ -134,20 +145,7 @@ void setup()
   pinMode(uvPin, OUTPUT);
   pinMode(pumpPin, OUTPUT);
 
-
-  hp = 100;
-  Move(hp);
-  preHP=hp; 
-  fullLife(); 
-  announceHP(hp);
-
-  Serial.flush();// Give reader a chance to see the output.
- 
-
-  //debug is 1 for on 0 for off
-  debug = 0;
-  
-  analogWrite(pumpPin,90);
+  analogWrite(pumpPin,40);
 }
 
 
@@ -162,7 +160,7 @@ void transitionToNew(int R,int G, int B, int UV, int thisDelay){
   preHP = hp;
 
 
-  for (int i = 0; i <= 1020; i++) {
+  for (int i = 0; i <= 510; i++) {
 
     redVal = calculateVal(stepR, redVal, i);
     grnVal = calculateVal(stepG, grnVal, i);
@@ -192,15 +190,15 @@ void transitionToNew(int R,int G, int B, int UV, int thisDelay){
 void death() { 
   pumpLevel(0);
   Serial.println("Death");
-  transitionToNew(255,0,0,0,1);
-  transitionToNew(0,0,0,0,3);
+  transitionToNew(255,0,0,0,2);
+  transitionToNew(0,0,0,0,6);
   state=0;
 }
 
 
-//special case for hp set to 100 (full heal)
+//special case that triggers on a full heal from another state
 void fullLife() {
-  transitionToNew(255,255,255,0,1);//fades to white
+  transitionToNew(255,255,255,0,2);//fades to white
   transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,1);//force fades back to target
 }
 
@@ -210,20 +208,19 @@ void pumpLevel(int pumpIncoming) {
   analogWrite(pumpPin,pumpIncoming);
 }
 
-//Updates RGB LED and UV LED states relative to motor position. 
+//Updates RGB LED and UV LED states
 void updateState(){
   int feedback = jrkGetFeedback();
-  
-  if(abs(feedback-motorTarget)<50) { //if the fade is near completion stop attempting positional fade
+  if(abs(feedback-motorTarget)<30) { //if the fade is near completion stop attempting positional fade (it never gets there perfectly)
     state=1; //switch to forced fade state.
-    transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,0);//force the last leg of the fade.
   }
   else{
-  redVal = calculateVal2(prevR,redTarget,feedback);
-  grnVal = calculateVal2(prevG,grnTarget,feedback);
-  bluVal = calculateVal2(prevB,bluTarget,feedback);
-  uvVal = calculateVal2(prevUV,uvTarget,feedback);
-  analogWrite(redPin, redVal);   
+  double posFrac = (double(feedback)-double(preMotorTarget))/(double(motorTarget)-double(preMotorTarget));//this is the fractional position of travel between the previous target  and the new target.
+  redVal = calculateVal2(prevR,redTarget,posFrac);
+  grnVal = calculateVal2(prevG,grnTarget,posFrac);
+  bluVal = calculateVal2(prevB,bluTarget,posFrac);
+  uvVal = calculateVal2(prevUV,uvTarget,posFrac);
+  analogWrite(redPin, redVal);   // Write current values to LED pins
   analogWrite(grnPin, grnVal);      
   analogWrite(bluPin, bluVal); 
   analogWrite(uvPin, uvVal);
@@ -231,17 +228,18 @@ void updateState(){
 
 }
 
-//send this a pre and target int and it spits out an int based on the fractional feedback position of the motor controller relative its starting and target position mid-move
-int calculateVal2(int previousSetting, int targetSetting, int feedbackVal){
-  delay(4); // for some reason the blu, and UV values get scrambled unless you have this delay, this is the lowest stable delay# and potentially isn't 100% stable
+  
+  
+//send this a pre and target int and it spits out an int based on the fractional feedback position of the motor controller
+int calculateVal2(int previousSetting, int targetSetting, double positionFraction){
+  //delay(10); // for some reason this delay seemed to solve a wierd flickering bug but the bug disappeared.. 
   int returnVal;
   if (previousSetting==targetSetting){ //doesn't attempt to fade anything if it's already the right color
     returnVal= targetSetting;
   }
   else {    //some math to calculate the next int step relative to the motor position
-
-    float motorPositionFraction = (float(feedbackVal)-float(preMotorTarget))/(float(motorTarget)-float(preMotorTarget));
-    returnVal = float(previousSetting)+(float(targetSetting)-float(previousSetting))*motorPositionFraction;
+    
+    returnVal = (previousSetting)+(targetSetting-previousSetting)*positionFraction;
 
     if (returnVal > 255) {
       returnVal = 255;
@@ -249,8 +247,8 @@ int calculateVal2(int previousSetting, int targetSetting, int feedbackVal){
     else if (returnVal < 0) {
       returnVal = 0;
     }
-    return returnVal;
   }
+    return returnVal;
 }
 
 //gets the current position from the jrk motor controller
@@ -260,6 +258,7 @@ int jrkGetFeedback() {
   mySerial.write(0xA5); //says  HEY! send me a feedback output
   unsigned char response[2];
   delay(5); //needs to wait for the response, testing showed this to be the stable point
+
   if (mySerial.available()){
     response[0]=mySerial.read();
     response[1]=mySerial.read();
@@ -282,15 +281,18 @@ void loop()
       while (pointer < 7) { // accumulate chars in the buffer
         buffer[pointer] = Serial.read(); 
         pointer++;
+        //delay(1);
       }
+      Serial.flush();
 
-      // update all of the state variables with the incoming values and takes a snapshot of the current color for fading reference
+      //logs the current settings for reference (for fading mainly)
       preHP=hp;
       prevR=redVal;
       prevG=grnVal;
-      prevB=bluVal;
+      prevB=bluVal; 
       prevUV=uvVal;
-
+      
+      //updates all of the taret variables.
       hp=buffer[0];
       redTarget=buffer[1];
       grnTarget=buffer[2];
@@ -298,12 +300,12 @@ void loop()
       uvTarget=buffer[4];
       pumpSet=buffer[5];
       debug=buffer[6];
-      
+
       //updated the pump speed (response is so slow that there is no reason to fade it)
       pumpLevel(pumpSet);
 
       //debug stuff
-      if (debug == 1){   // reports the serial port input values back to pc
+      if (debug !=0){   // reports the serial port input values back to pc
         Serial.println("Debug mode on");
         Serial.print("HP:");
         Serial.println(hp);
@@ -320,13 +322,13 @@ void loop()
         Serial.print("debug:");
         Serial.println(debug);
       }   
-      
-      
+
+
       /*main decision tree for what to do with new position or color data
-      * State 0 = Color fading relative to motor position
-      * State 1 = Forced color transitioning  
-      * tbd- state 2 will be segmented color without fade maybe.
-      */
+       * State 0 = Color fading relative to motor position
+       * State 1 = Forced color transitioning  
+       * tbd- state 2 will be segmented color without fade maybe.
+       */
       if (preHP==hp) {
         state=1;
         transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,dimDelay);
@@ -343,6 +345,15 @@ void loop()
         Move(hp);
         fullLife();
       }
+      else if (abs(hp-preHP) <=3){
+        state = 1;
+        Move(hp);
+        transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,0);
+//        analogWrite(redPin, redTarget);   // Write current values to LED pins
+//        analogWrite(grnPin, grnTarget);      
+//        analogWrite(bluPin, bluTarget); 
+//        analogWrite(uvPin, uvTarget);
+      }
       else {   // if not dying or full hp than just move and fade to new position
         state = 0; 
         Move(hp);
@@ -351,13 +362,12 @@ void loop()
 
       announceHP(hp); //echos the new hp back to pc
       pointer=0;  //resets the pointer for the serial reader
-
-      Serial.flush();
     } 
   }
   if (state ==0){   //0 state is when machine is fading relative to motor position between colors (no forced fade)
-  updateState();
+    updateState();
   }
+
 }
 
 
