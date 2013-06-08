@@ -345,14 +345,10 @@ void loop()
         Move(hp);
         fullLife();
       }
-      else if (abs(hp-preHP) <=3){
+      else if (abs(hp-preHP) <=3){ //force fade small shifts, this allows slow regen movements to fade properly
         state = 1;
         Move(hp);
         transitionToNew(redTarget,grnTarget,bluTarget,uvTarget,0);
-//        analogWrite(redPin, redTarget);   // Write current values to LED pins
-//        analogWrite(grnPin, grnTarget);      
-//        analogWrite(bluPin, bluTarget); 
-//        analogWrite(uvPin, uvTarget);
       }
       else {   // if not dying or full hp than just move and fade to new position
         state = 0; 
